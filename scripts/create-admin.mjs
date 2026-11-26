@@ -54,8 +54,13 @@ const { error: writeErr } = existing
 if (writeErr) throw writeErr;
 console.log("Role set to super admin");
 
-const redirectTo = `${(NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "")}/reset-password`;
-const { data: link, error: linkErr } = await supabase.auth.admin.generateLink({ type: "recovery", email: normalized, options: { redirectTo } });
+const siteUrl = (NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, "");
+const { data: link, error: linkErr } = await supabase.auth.admin.generateLink({ type: "recovery", email: normalized, options: { redirectTo: `${siteUrl}/reset-password` } });
 if (linkErr) throw linkErr;
+// Go through our own /auth/confirm route, as invitations do (src/lib/invite-link.ts):
+// it verifies the token server-side and sets the session cookies. Supabase's own
+// action_link puts the session in the URL hash, which the PKCE browser client
+// ignores, so /reset-password would always say "Link expired".
+const q = new URLSearchParams({ token_hash: link.properties.hashed_token, type: "recovery", next: "/reset-password" });
 console.log("\nGive this one-time link to the admin to set their password (it expires in 24 hours):");
-console.log(link.properties.action_link);
+console.log(`${siteUrl}/auth/confirm?${q.toString()}`);
